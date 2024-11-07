@@ -11,7 +11,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
     name = serializers.CharField(write_only=True)
     mobile_number = serializers.CharField(write_only=True)
-    referral_code = serializers.CharField(write_only=True, required=False)  # Optional field
+    referral_code = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
