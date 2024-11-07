@@ -46,7 +46,6 @@ class RegisterSerializer(serializers.ModelSerializer):
                 data['referred_by'] = referred_user  # Save the referred user (the user who referred the new user)
             except User.DoesNotExist:
                 raise serializers.ValidationError({'referral_code': 'Invalid referral code.'})
-
         return data
 
     def create(self, validated_data):
