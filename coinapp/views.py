@@ -178,7 +178,7 @@ class UserPointsView(APIView):
         user = request.user
         return Response({
             "user_email": user.email,
-            "points_balance": user.points
+            "points_balance": user.point
         })
 
 
