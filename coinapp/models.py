@@ -40,7 +40,7 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         if not self.referral_code:
-            self.referral_code = str(uuid.uuid4())  # Generate a unique referral code
+            self.referral_code = str(uuid.uuid4())
         super().save(*args, **kwargs)
 
 

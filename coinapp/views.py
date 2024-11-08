@@ -125,5 +125,7 @@ class Usercreateview(generics.ListCreateAPIView):
     serializer_class = UserSerializer
 
 class Userdetails(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = []
+    authentication_classes = []
     queryset = User.objects.all()
     serializer_class = UserSerializer
