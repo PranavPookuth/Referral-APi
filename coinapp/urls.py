@@ -13,6 +13,10 @@ urlpatterns = [
     path('users/',Usercreateview.as_view(),name='user'),
     path('users/<int:pk>/',Userdetails.as_view(),name='user-details'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
+    path('purchase-coin/', CoinPurchaseView.as_view(), name='purchase-coin'),
+    path('user-points/', UserPointsView.as_view(), name='user-points')
+
+
 
 
 

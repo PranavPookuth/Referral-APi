@@ -12,11 +12,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     name = serializers.CharField(write_only=True)
     mobile_number = serializers.CharField(write_only=True)
     referral_code = serializers.CharField(write_only=True, required=False)
-    username = serializers.CharField(write_only=True, required=True)  # Add username field
 
     class Meta:
         model = User
-        fields = ['username', 'name', 'email', 'mobile_number', 'password', 'confirm_password', 'referral_code']
+        fields = ['name', 'email', 'mobile_number', 'password', 'confirm_password', 'referral_code']
 
     def validate(self, data):
         # Password validation
@@ -71,23 +70,27 @@ class RegisterSerializer(serializers.ModelSerializer):
             # Extract referred_by if it exists
             referred_by = validated_data.get('referred_by', None)
 
-            # Create new user with custom username
+            # Create new user
+            username = str(uuid.uuid4())[:8]
             user = User.objects.create_user(
                 email=validated_data['email'],
-                username=validated_data['username'],  # Use the provided username
+                username=username,
                 name=validated_data['name'],
                 mobile_number=validated_data['mobile_number'],
                 password=validated_data['password'],
-                referred_by=referred_by,  # Set referred_by field
-                is_active=False  # The user should not be active until verified
+                referred_by=referred_by,
+                is_active=False
             )
 
-            # Create a referral record if the user was referred
             if referred_by:
+                referred_by.points += 10
+                referred_by.save()
+
+                # Create a Referral record
                 Referral.objects.create(
                     referred_by=referred_by,
                     referred_user=user,
-                    referral_code=user.referral_code
+                    points_awarded=10  # Set points awarded
                 )
 
             # Generate OTP for new user
@@ -104,9 +107,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
 
             return user
-
-
-
 
 
 class OTPVerifySerializer(serializers.Serializer):
@@ -132,4 +132,11 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
+
+class CoinPurchaseSerializer(serializers.ModelSerializer):
+    number_of_coins=serializers.IntegerField(required=True)
+    class Meta:
+        model = CoinPurchase
+        fields = ['user', 'referred_by', 'number_of_coins', 'purchase_date', 'points_awarded_to_referrer']
+
 

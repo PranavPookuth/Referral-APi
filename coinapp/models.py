@@ -38,6 +38,7 @@ class User(AbstractUser):
     city = models.CharField(max_length=50, null=True, blank=True)
     pincode = models.IntegerField(null=True, blank=True)
     DOB = models.DateField(null=True, blank=True)
+    points = models.IntegerField(default=0)
     referral_code = models.CharField(max_length=8, unique=True, blank=True, null=True)
     referred_by = models.ForeignKey('self',related_name='referrals_by',on_delete=models.CASCADE,null=True,blank=True)
     def save(self, *args, **kwargs):
@@ -74,3 +75,14 @@ class Referral(models.Model):
 
     def referred_user_name(self):
         return self.referred_user.name
+
+
+class CoinPurchase(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="coin_purchases")
+    referred_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="referrals_earning_points")
+    number_of_coins = models.PositiveIntegerField(null=False,blank=False)
+    purchase_date = models.DateTimeField(auto_now_add=True)
+    points_awarded_to_referrer = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.user.email} purchased {self.number_of_coins} coins"

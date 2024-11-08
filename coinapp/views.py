@@ -1,6 +1,7 @@
 import random
 from django.contrib.auth import login
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import  BasicAuthentication
 
 from rest_framework.response import Response
 from django.shortcuts import render
@@ -72,10 +73,6 @@ class RegisterView(APIView):
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-
-
 class OTPVerifyView(APIView):
     permission_classes = []
     authentication_classes = []
@@ -138,5 +135,50 @@ class Userdetails(generics.RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
+
+class CoinPurchaseView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
+
+    def post(self, request):
+        # Get the user from the request
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"error": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        number_of_coins = request.data.get("number_of_coins",1)
+        referred_by = user.referred_by if hasattr(user, 'referred_by') else None
+
+        points_awarded_to_referrer = 0
+        if referred_by:
+            points_awarded_to_referrer = int(number_of_coins)
+
+            referred_by.points = int(referred_by.points)
+            referred_by.points += points_awarded_to_referrer
+            referred_by.save()
+        coin_purchase = CoinPurchase.objects.create(
+            user=user,
+            referred_by=referred_by,
+            number_of_coins=number_of_coins,
+            points_awarded_to_referrer=points_awarded_to_referrer
+        )
+
+        # Prepare the response
+        return Response({
+            "message": f"{number_of_coins} coin(s) purchased successfully!",
+            "points_awarded_to_referrer": points_awarded_to_referrer,
+            "total_points_for_referrer": referred_by.points if referred_by else 0
+        }, status=status.HTTP_201_CREATED)
+
+
+class UserPointsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "user_email": user.email,
+            "points_balance": user.points
+        })
 
 
