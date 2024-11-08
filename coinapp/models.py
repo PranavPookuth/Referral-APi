@@ -71,3 +71,6 @@ class Referral(models.Model):
     referral_code = models.CharField(max_length=8, unique=True, default=uuid.uuid4, editable=False)
     def __str__(self):
         return f"{self.referred_user.email} referred by {self.referred_by.email}"
+
+    def referred_user_name(self):
+        return self.referred_user.name

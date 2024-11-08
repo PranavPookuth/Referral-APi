@@ -12,10 +12,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     name = serializers.CharField(write_only=True)
     mobile_number = serializers.CharField(write_only=True)
     referral_code = serializers.CharField(write_only=True, required=False)
+    username = serializers.CharField(write_only=True, required=True)  # Add username field
 
     class Meta:
         model = User
-        fields = ['name', 'email', 'mobile_number', 'password', 'confirm_password', 'referral_code']
+        fields = ['username', 'name', 'email', 'mobile_number', 'password', 'confirm_password', 'referral_code']
 
     def validate(self, data):
         # Password validation
@@ -70,17 +71,24 @@ class RegisterSerializer(serializers.ModelSerializer):
             # Extract referred_by if it exists
             referred_by = validated_data.get('referred_by', None)
 
-            # Create new user
-            username = str(uuid.uuid4())[:8]
+            # Create new user with custom username
             user = User.objects.create_user(
                 email=validated_data['email'],
-                username=username,
+                username=validated_data['username'],  # Use the provided username
                 name=validated_data['name'],
                 mobile_number=validated_data['mobile_number'],
                 password=validated_data['password'],
                 referred_by=referred_by,  # Set referred_by field
-                is_active=False
+                is_active=False  # The user should not be active until verified
             )
+
+            # Create a referral record if the user was referred
+            if referred_by:
+                Referral.objects.create(
+                    referred_by=referred_by,
+                    referred_user=user,
+                    referral_code=user.referral_code
+                )
 
             # Generate OTP for new user
             otp = random.randint(100000, 999999)
@@ -96,6 +104,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
 
             return user
+
+
 
 
 

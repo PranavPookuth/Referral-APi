@@ -46,10 +46,12 @@ class RegisterView(APIView):
             if serializer.is_valid():
                 user = serializer.save()
 
-                # Fetch the referral name if exists
+                # Fetch the referral information if exists
                 referred_by_username = None
+                referred_by_name = None
                 if user.referred_by:
                     referred_by_username = user.referred_by.username
+                    referred_by_name = user.referred_by.name  # Get referred user's name
 
                 otp = random.randint(100000, 999999)
                 user.otp = otp
@@ -64,10 +66,13 @@ class RegisterView(APIView):
 
                 return Response({
                     'message': 'OTP Sent successfully! Please verify your OTP.',
-                    'referred_by_username': referred_by_username  # Include referred_by username in the response
+                    'referred_by_username': referred_by_username,
+                    'referred_by_name': referred_by_name
                 }, status=status.HTTP_201_CREATED)
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 
@@ -132,4 +137,6 @@ class Userdetails(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = []
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
+
 
