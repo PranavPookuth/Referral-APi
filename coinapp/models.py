@@ -10,18 +10,21 @@ from django.db import models
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(self, email, password=None, referred_by=None, **extra_fields):
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+        user = self.model(email=email, referred_by=referred_by, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
+
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, password, **extra_fields)
+
+
 
 class User(AbstractUser):
     name = models.CharField(max_length=100, null=True, blank=True)
@@ -35,12 +38,11 @@ class User(AbstractUser):
     city = models.CharField(max_length=50, null=True, blank=True)
     pincode = models.IntegerField(null=True, blank=True)
     DOB = models.DateField(null=True, blank=True)
-    referral_code = models.CharField(max_length=36, unique=True, blank=True, null=True)
-    referred_by = models.ForeignKey('self', related_name='referrals', on_delete=models.SET_NULL, null=True, blank=True)
-
+    referral_code = models.CharField(max_length=8, unique=True, blank=True, null=True)
+    referred_by = models.ForeignKey('self',related_name='referrals_by',on_delete=models.CASCADE,null=True,blank=True)
     def save(self, *args, **kwargs):
         if not self.referral_code:
-            self.referral_code = str(uuid.uuid4())
+            self.referral_code = str(uuid.uuid4().hex)[:8]
         super().save(*args, **kwargs)
 
 
@@ -63,3 +65,9 @@ class User(AbstractUser):
         return self.email
 
 
+class Referral(models.Model):
+    referred_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='referrals')
+    referred_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='referred_users')
+    referral_code = models.CharField(max_length=8, unique=True, default=uuid.uuid4, editable=False)
+    def __str__(self):
+        return f"{self.referred_user.email} referred by {self.referred_by.email}"

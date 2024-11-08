@@ -46,7 +46,7 @@ class RegisterView(APIView):
             if serializer.is_valid():
                 user = serializer.save()
 
-                # Check if the user has been referred by someone
+                # Fetch the referral name if exists
                 referred_by_username = None
                 if user.referred_by:
                     referred_by_username = user.referred_by.username
@@ -68,6 +68,7 @@ class RegisterView(APIView):
                 }, status=status.HTTP_201_CREATED)
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class OTPVerifyView(APIView):
@@ -121,6 +122,8 @@ class LogoutView(APIView):
 
 
 class Usercreateview(generics.ListCreateAPIView):
+    permission_classes = []
+    authentication_classes = []
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
@@ -129,3 +132,4 @@ class Userdetails(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = []
     queryset = User.objects.all()
     serializer_class = UserSerializer
+

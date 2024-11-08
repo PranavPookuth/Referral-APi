@@ -73,9 +73,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             # Create new user
             username = str(uuid.uuid4())[:8]
             user = User.objects.create_user(
+                email=validated_data['email'],
                 username=username,
                 name=validated_data['name'],
-                email=validated_data['email'],
                 mobile_number=validated_data['mobile_number'],
                 password=validated_data['password'],
                 referred_by=referred_by,  # Set referred_by field
@@ -96,6 +96,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
 
             return user
+
 
 
 class OTPVerifySerializer(serializers.Serializer):
@@ -121,3 +122,4 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
+
