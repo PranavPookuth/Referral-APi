@@ -14,10 +14,10 @@ urlpatterns = [
     path('users/<int:pk>/',Userdetails.as_view(),name='user-details'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('purchase-coin/', CoinPurchaseView.as_view(), name='purchase-coin'),
-    path('user-points/', UserPointsView.as_view(), name='user-points')
+    path('user-points/', UserPointsView.as_view(), name='user-points'),
 
-
-
-
+    path('hotels/', views.HotelListCreateView.as_view(), name='hotel-list-create'),
+    path('hotels/<int:pk>/', views.HotelDetailView.as_view(), name='hotel-detail'),
+    path('book-hotel/', views.HotelBookingView.as_view(), name='hotel-booking'),
 
 ]

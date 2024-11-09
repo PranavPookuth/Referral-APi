@@ -4,6 +4,8 @@ from .models import *
 import uuid
 import random
 from django.core.mail import send_mail
+from decimal import Decimal
+
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -138,5 +140,73 @@ class CoinPurchaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = CoinPurchase
         fields = ['user', 'referred_by', 'number_of_coins', 'purchase_date', 'points_awarded_to_referrer']
+
+
+class HotelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hotel
+        fields = '__all__'
+
+class HotelBookingSerializer(serializers.ModelSerializer):
+    name = serializers.CharField()
+    hotel = serializers.CharField()
+    points_used = serializers.IntegerField(required=False, default=0)
+
+    class Meta:
+        model = HotelBooking
+        fields = ['name', 'hotel', 'number_of_rooms', 'points_used', 'total_price', 'discount_applied']
+
+    def validate(self, data):
+        name = data.get('name')
+        hotel_name = data.get('hotel')
+        points_used = data.get('points_used', 0)
+
+        # Fetch the user and hotel
+        try:
+            user = User.objects.get(username=name)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found.")
+
+        try:
+            hotel = Hotel.objects.get(name=hotel_name)
+        except Hotel.DoesNotExist:
+            raise serializers.ValidationError("Hotel not found.")
+
+        # Check if user has enough points
+        if points_used > user.points:
+            raise serializers.ValidationError("Not enough points.")
+
+        # Check if hotel has enough available rooms
+        if hotel.available_rooms < data['number_of_rooms']:
+            raise serializers.ValidationError("Not enough available rooms.")
+
+        # Calculate the total price and discount
+        total_price = hotel.price_per * data['number_of_rooms']
+        discount_per_point = 10  # 10 rupees per point
+        discount = points_used * discount_per_point
+        max_discount = total_price * Decimal('0.5')  # Max discount is 50% of total price
+        actual_discount = min(discount, max_discount)
+
+        # Calculate the final discounted price
+        discounted_price = total_price - actual_discount
+        final_price = max(discounted_price, Decimal('0.00'))  # Ensure price is not negative
+
+        # Store the final price, discount, and remaining points
+        data['total_price'] = final_price
+        data['discount_applied'] = actual_discount
+        data['remaining_points'] = user.points - points_used  # Remaining points after booking
+
+        # Add the user and hotel to the data
+        data['name'] = user
+        data['hotel'] = hotel
+
+        return data
+
+    def create(self, validated_data):
+        # Remove 'remaining_points' from validated data as it's not a field on the model
+        validated_data.pop('remaining_points', None)
+
+        # Create the HotelBooking instance
+        return super().create(validated_data)
 
 

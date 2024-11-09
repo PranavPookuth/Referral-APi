@@ -182,11 +182,7 @@ class CoinPurchaseView(APIView):
             "points_awarded_to_referrer": points_awarded_to_referrer,
             "total_points_for_referrer": referred_by.points if referred_by else 0,
             "referred_user_first_purchase": referred_user_first_purchase,
-            "total_points_for_referred_user": user.points
         }, status=status.HTTP_201_CREATED)
-
-
-
 
 class UserPointsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -198,4 +194,52 @@ class UserPointsView(APIView):
             "points_balance": user.points
         })
 
+class HotelListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
+    queryset = Hotel.objects.all()
+    serializer_class = HotelSerializer
+
+class HotelDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = []
+    authentication_classes = []
+    queryset = Hotel.objects.all()
+    serializer_class = HotelSerializer
+
+class HotelBookingView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
+
+    def post(self, request):
+        serializer = HotelBookingSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['name']
+            hotel = serializer.validated_data['hotel']
+            points_used = serializer.validated_data['points_used']
+
+            # Reduce the user's points based on the points used
+            user.points -= points_used
+            user.save()
+
+            # Create the hotel booking (this will also calculate and apply the discount)
+            booking = serializer.save()
+
+            # Apply the discount based on points used
+            booking.apply_discount()
+
+            # Reduce the available rooms for the hotel
+            hotel.available_rooms -= 1
+            hotel.save()
+
+            # Return a success response with the final price, discount, and booking date
+            return Response({
+                "message": "Hotel booking successful!",
+                "total_price": str(booking.total_price),  # Final price after discount
+                "discount_applied": str(booking.discount_applied),  # Discount applied
+                "points_used": booking.points_used,
+                "remaining_points": user.points,
+                "booking_date": booking.booking_date.strftime('%Y-%m-%d %H:%M:%S'),  # Show booking date and time
+            }, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

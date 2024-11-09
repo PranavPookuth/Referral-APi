@@ -6,7 +6,7 @@ from django.db import models
 from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
 from django.contrib.auth.models import AbstractUser, Permission, Group, PermissionsMixin
 from django.db import models
-
+from decimal import Decimal
 
 
 class CustomUserManager(BaseUserManager):
@@ -86,3 +86,50 @@ class CoinPurchase(models.Model):
 
     def __str__(self):
         return f"{self.user.email} purchased {self.number_of_coins} coins"
+
+class Hotel(models.Model):
+    name = models.CharField(max_length=255)
+    location = models.CharField(max_length=255)
+    price_per= models.DecimalField(max_digits=10, decimal_places=2)  # Price per night in currency
+    discount_per_point = models.DecimalField(max_digits=5, decimal_places=2, default=0.1)  # Discount per point
+    available_rooms = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.name} - {self.location}"
+
+
+class HotelBooking(models.Model):
+    name = models.ForeignKey(User, on_delete=models.CASCADE, related_name="hotel_bookings")
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="bookings")
+    number_of_rooms = models.PositiveIntegerField()
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_applied = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    points_used = models.PositiveIntegerField(default=0)
+    booking_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} rooms"
+
+    def apply_discount(self):
+        """
+        Calculate the discount based on points used, apply it to the total price, and update the total price.
+        """
+        if self.points_used > 0:
+            # Discount per point is 10 rupees
+            discount_per_point = Decimal(10)
+            discount = Decimal(self.points_used) * discount_per_point  # Discount based on points used
+
+            # Ensure the discount does not exceed 50% of the total price
+            max_discount = self.total_price * Decimal('0.5')  # Max discount is 50% of total price
+            self.discount_applied = min(discount, max_discount)  # Apply the lesser of discount or max discount
+
+            # Apply the discount to the total price, ensuring it doesn't go below zero
+            self.total_price -= self.discount_applied
+            self.total_price = max(self.total_price, Decimal('0.00'))  # Prevent negative total price
+        else:
+            # If no points are used, there is no discount
+            self.discount_applied = Decimal('0.00')
+
+        self.save()
+
+
