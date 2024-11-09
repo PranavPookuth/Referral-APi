@@ -141,21 +141,27 @@ class CoinPurchaseView(APIView):
     authentication_classes = [BasicAuthentication]
 
     def post(self, request):
-        # Get the user from the request
         user = request.user
         if not user.is_authenticated:
             return Response({"error": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        number_of_coins = request.data.get("number_of_coins",1)
+        number_of_coins = request.data.get("number_of_coins", 1)
+
+        # Check if the user has a referring user
         referred_by = user.referred_by if hasattr(user, 'referred_by') else None
 
         points_awarded_to_referrer = 0
-        if referred_by:
-            points_awarded_to_referrer = int(number_of_coins)
+        referred_user_first_purchase = False
 
+        # Award points to the referrer if applicable
+        if referred_by:
             referred_by.points = int(referred_by.points)
+
+            # Perform the addition after both are integers
             referred_by.points += points_awarded_to_referrer
             referred_by.save()
+
+        # Create the coin purchase record
         coin_purchase = CoinPurchase.objects.create(
             user=user,
             referred_by=referred_by,
@@ -163,12 +169,23 @@ class CoinPurchaseView(APIView):
             points_awarded_to_referrer=points_awarded_to_referrer
         )
 
+        # Check if it's the referred user's first purchase and award points to them
+        if not user.points:
+            referred_user_first_purchase = True
+            user.points = int(user.points)  # Force to integer before adding points
+            user.points += 10  # Award 10 points (or any other number) to the referred user on first purchase
+            user.save()
+
         # Prepare the response
         return Response({
             "message": f"{number_of_coins} coin(s) purchased successfully!",
             "points_awarded_to_referrer": points_awarded_to_referrer,
-            "total_points_for_referrer": referred_by.points if referred_by else 0
+            "total_points_for_referrer": referred_by.points if referred_by else 0,
+            "referred_user_first_purchase": referred_user_first_purchase,
+            "total_points_for_referred_user": user.points
         }, status=status.HTTP_201_CREATED)
+
+
 
 
 class UserPointsView(APIView):
