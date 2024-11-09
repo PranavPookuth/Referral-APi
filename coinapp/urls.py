@@ -20,4 +20,5 @@ urlpatterns = [
     path('hotels/<int:pk>/', views.HotelDetailView.as_view(), name='hotel-detail'),
     path('book-hotel/', views.HotelBookingView.as_view(), name='hotel-booking'),
 
+
 ]

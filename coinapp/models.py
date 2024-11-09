@@ -106,9 +106,8 @@ class HotelBooking(models.Model):
     discount_applied = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     points_used = models.PositiveIntegerField(default=0)
     booking_date = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
-        return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} rooms"
+        return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} rooms on{self.booking_date}"
 
     def apply_discount(self):
         """
