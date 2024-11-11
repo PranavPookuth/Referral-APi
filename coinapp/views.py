@@ -333,7 +333,6 @@ class HotelBookingView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class HotelSearchView(APIView):
     def get(self, request):
         location = request.query_params.get('location', None)
