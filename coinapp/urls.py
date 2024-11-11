@@ -17,11 +17,14 @@ urlpatterns = [
     path('user-points/', UserPointsView.as_view(), name='user-points'),
 
     path('hotels/', views.HotelListCreateView.as_view(), name='hotel-list-create'),
+    path('hotels/<int:pk>/', views.hotelview.as_view(), name='hotel-detail'),
     path('hotels/<int:pk>/', views.HotelDetailView.as_view(), name='hotel-detail'),
+    path('hotel/<int:pk>/', HotelDetailView.as_view(), name='hotel-detail'),
+
+    # URL for updating hotel booking (PUT method)
+    path('hotel-booking/<int:pk>/', HotelBookingView.as_view(), name='hotel-booking'),
     path('book-hotel/', views.HotelBookingView.as_view(), name='hotel-booking'),
     path('hotels/search/', HotelSearchView.as_view(), name='hotel-search'),
-
-    # URL for creating a booking
     path('hotels/book/', HotelBookingView.as_view(), name='hotel-booking'),
 
 

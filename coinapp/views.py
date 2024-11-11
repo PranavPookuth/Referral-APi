@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import  BasicAuthentication
 
 from rest_framework.response import Response
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from .models import *
 from .serializers import *
 from rest_framework import generics,status
@@ -202,11 +202,55 @@ class HotelListCreateView(generics.ListCreateAPIView):
     queryset = Hotel.objects.all()
     serializer_class = HotelSerializer
 
-class HotelDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = []
-    authentication_classes = []
+class hotelview(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
     queryset = Hotel.objects.all()
     serializer_class = HotelSerializer
+
+class HotelDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
+
+    def get(self, request, pk):
+        try:
+            hotel = Hotel.objects.get(id=pk)
+        except Hotel.DoesNotExist:
+            return Response({"error": "Hotel not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = HotelSerializer(hotel)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        try:
+            hotel = Hotel.objects.get(id=pk)
+        except Hotel.DoesNotExist:
+            return Response({"error": "Hotel not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Serialize the request data and validate it
+        serializer = HotelSerializer(hotel, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            # Handle room types update (if provided in the request)
+            room_types_data = request.data.get('room_types', [])
+            if room_types_data:
+                # Clear and re-add room types if provided in the request
+                hotel.room_types.clear()
+
+                for room_data in room_types_data:
+                    room_type, created = RoomType.objects.update_or_create(
+                        hotel=hotel,
+                        room_name=room_data['room_name'],
+                        defaults={'price_per_night': room_data['price_per_night'], 'available_rooms': room_data['available_rooms']}
+                    )
+                    hotel.room_types.add(room_type)
+
+            # Save the updated hotel instance
+            updated_hotel = serializer.save()
+
+            return Response(HotelSerializer(updated_hotel).data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class HotelBookingView(APIView):
@@ -214,46 +258,78 @@ class HotelBookingView(APIView):
     authentication_classes = [BasicAuthentication]
 
     def post(self, request):
-        serializer = HotelBookingSerializer(data=request.data)
+        hotel_id = request.data.get('hotel_id')
+        room_type_id = request.data.get('room_type_id')
+        number_of_rooms = request.data.get('number_of_rooms')
+        points_used = request.data.get('points_used', 0)  # Optional field
+        check_in_date = request.data.get('check_in_date')  # Assuming user provides a check-in date
+        user = request.user  # Get the authenticated user
+
+        # Validate the input data
+        if not hotel_id or not room_type_id or not number_of_rooms or not check_in_date:
+            return Response({"error": "Missing required fields."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Convert the check-in date to a datetime object
+        try:
+            check_in_date = datetime.strptime(check_in_date, "%m/%d/%Y").date()
+        except ValueError:
+            return Response({"error": "Invalid date format, expected MM/DD/YYYY"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch hotel and room type
+        hotel = get_object_or_404(Hotel, id=hotel_id)
+        room_type = get_object_or_404(RoomType, id=room_type_id)
+
+        # Check if there are enough available rooms on the specific date
+        available_rooms_on_date = hotel.available_on_date(check_in_date, room_type.room_name if room_type else None)
+        if available_rooms_on_date < number_of_rooms:
+            return Response({"error": "Not enough rooms available for the selected date and room type."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate the total price based on room price and number of rooms
+        total_price = room_type.price_per_night * number_of_rooms
+
+        # Apply discount based on points used
+        discount_per_point = Decimal(10)  # Assume 10 rupees per point
+        discount = points_used * discount_per_point
+        max_discount = total_price * Decimal('0.5')  # Max discount is 50% of total price
+        actual_discount = min(discount, max_discount)
+
+        # Deduct discount from total price
+        discounted_price = total_price - actual_discount
+        discounted_price = max(discounted_price, Decimal('0.00'))  # Ensure the price doesn't go below zero
+
+        # Ensure the user has enough points
+        if points_used > user.points:
+            return Response({"error": "Not enough points."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create the booking
+        booking_data = {
+            "name": user,
+            "hotel": hotel,
+            "room_type": room_type,
+            "number_of_rooms": number_of_rooms,
+            "total_price": discounted_price,
+            "points_used": points_used,
+        }
+
+        # Serialize and save the booking
+        serializer = HotelBookingSerializer(data=booking_data)
 
         if serializer.is_valid():
-            user = serializer.validated_data['name']
-            hotel = serializer.validated_data['hotel']
-            number_of_rooms = serializer.validated_data['number_of_rooms']
-            points_used = serializer.validated_data['points_used']
+            booking = serializer.save()
 
-            # Check if enough rooms are available for the requested date
-            check_in_date = request.data.get('check_in_date')  # Assuming this is passed in the request
-            if check_in_date:
-                check_in_date = datetime.strptime(check_in_date, "%Y-%m-%d").date()
-                available_rooms = hotel.available_on_date(check_in_date)
-                if available_rooms < number_of_rooms:
-                    return Response({"error": "Not enough rooms available for the selected date."},
-                                    status=status.HTTP_400_BAD_REQUEST)
+            # Update room and hotel availability after booking
+            hotel.available_rooms -= number_of_rooms
+            room_type.available_rooms -= number_of_rooms
+            hotel.save()
+            room_type.save()
 
-            # Reduce the user's points based on the points used
+            # Deduct points from user account
             user.points -= points_used
             user.save()
 
-            # Create the hotel booking (this will also calculate and apply the discount)
-            booking = serializer.save()
-
-            # Apply the discount based on points used
-            booking.apply_discount()
-
-            # Reduce the available rooms for the hotel
-            hotel.available_rooms -= number_of_rooms  # Decrease by the number of rooms booked
-            hotel.save()
-
-            # Return a success response with the final price, discount, and booking date
-            return Response({
-                "message": "Hotel booking successful!",
-                "total_price": str(booking.total_price),  # Final price after discount
-                "discount_applied": str(booking.discount_applied),  # Discount applied
-                "points_used": booking.points_used,
-                "remaining_points": user.points,
-                "booking_date": booking.booking_date.strftime('%Y-%m-%d %H:%M:%S'),  # Show booking date and time
-            }, status=status.HTTP_201_CREATED)
+            # Return the serialized booking data
+            return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -263,7 +339,7 @@ class HotelSearchView(APIView):
         location = request.query_params.get('location', None)
         check_in_date = request.query_params.get('check_in_date', None)
         max_price = request.query_params.get('max_price', None)
-        available_rooms = None
+        room_name = request.query_params.get('room_name', None)  # Room name to filter by
 
         if not check_in_date:
             return Response({"error": "check_in_date is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -285,16 +361,19 @@ class HotelSearchView(APIView):
         available_hotels = []
 
         for hotel in hotels:
-            # Check room availability for the given date
-            available_rooms = hotel.available_on_date(check_in_date)
+            # Check room availability for the given date and room_name (if provided)
+            available_rooms = hotel.available_on_date(check_in_date, room_name)
 
             if available_rooms > 0:
+                room_types = hotel.room_types.filter(room_name__icontains=room_name) if room_name else hotel.room_types.all()
                 available_hotels.append({
                     'hotel_name': hotel.name,
                     'location': hotel.location,
                     'price_per_night': str(hotel.price_per),
                     'available_rooms': available_rooms,
+                    'room_types': RoomTypeSerializer(room_types, many=True).data,  # Serialize room types
                     'check_in_date': check_in_date
                 })
 
         return Response(available_hotels, status=status.HTTP_200_OK)
+

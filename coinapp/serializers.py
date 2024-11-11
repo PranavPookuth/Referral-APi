@@ -147,42 +147,50 @@ class HotelSerializer(serializers.ModelSerializer):
         model = Hotel
         fields = '__all__'
 
+
 class HotelBookingSerializer(serializers.ModelSerializer):
-    name = serializers.CharField()
-    hotel = serializers.CharField()
+    # Use PrimaryKeyRelatedField for ForeignKey fields
+    name = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    hotel = serializers.PrimaryKeyRelatedField(queryset=Hotel.objects.all())
+    room_type = serializers.PrimaryKeyRelatedField(queryset=RoomType.objects.all())
     points_used = serializers.IntegerField(required=False, default=0)
+    number_of_rooms = serializers.IntegerField()  # Add this field to the serializer
 
     class Meta:
         model = HotelBooking
-        fields = ['name', 'hotel', 'number_of_rooms', 'points_used']
-
+        fields = ['name', 'hotel', 'room_type', 'number_of_rooms', 'points_used']
     def validate(self, data):
-        # Similar validation code for points and hotel availability
+        # Fetch the user and hotel from the validated data
         name = data.get('name')
-        hotel_name = data.get('hotel')
+        hotel_id = data.get('hotel')
+        room_type_id = data.get('room_type')
         points_used = data.get('points_used', 0)
 
-        # Fetch the user and hotel
         try:
-            user = User.objects.get(username=name)  # Assuming the name is the username
+            user = User.objects.get(id=name.id)  # Get user by ID from ForeignKey field
         except User.DoesNotExist:
             raise serializers.ValidationError("User not found.")
 
         try:
-            hotel = Hotel.objects.get(name=hotel_name)
+            hotel = Hotel.objects.get(id=hotel_id.id)  # Get hotel by ID from ForeignKey field
         except Hotel.DoesNotExist:
             raise serializers.ValidationError("Hotel not found.")
+
+        # Validate room type selection
+        room_type = RoomType.objects.filter(hotel=hotel, id=room_type_id.id).first()
+        if not room_type:
+            raise serializers.ValidationError(f"Room type with id '{room_type_id}' not found for this hotel.")
 
         # Check if user has enough points
         if points_used > user.points:
             raise serializers.ValidationError("Not enough points.")
 
         # Check if hotel has enough available rooms
-        if hotel.available_rooms < data['number_of_rooms']:
-            raise serializers.ValidationError("Not enough available rooms.")
+        if room_type.available_rooms < data['number_of_rooms']:
+            raise serializers.ValidationError("Not enough available rooms for this room type.")
 
         # Calculate total price and discount
-        total_price = hotel.price_per * data['number_of_rooms']
+        total_price = room_type.price_per_night * data['number_of_rooms']
         discount_per_point = 10  # 10 rupees per point
         discount = points_used * discount_per_point
         max_discount = total_price * Decimal('0.5')  # Max discount is 50% of total price
@@ -197,21 +205,59 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         data['discount_applied'] = actual_discount
         data['remaining_points'] = user.points - points_used  # This is just for calculation, not for saving
 
-        # Add user and hotel to the data
+        # Add user, hotel, and room type to the data
         data['name'] = user
         data['hotel'] = hotel
+        data['room_type'] = room_type
 
         return data
 
-    def create(self, validated_data):
-        # Remove 'remaining_points' from validated data since it's not a model field
-        validated_data.pop('remaining_points', None)
-
-        # Create the HotelBooking instance
-        return super().create(validated_data)
+class RoomTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomType
+        fields = ['id', 'room_name', 'price_per_night', 'available_rooms']
 
 class HotelSerializer(serializers.ModelSerializer):
+    room_types = RoomTypeSerializer(many=True)  # Nested RoomType serializer
+
     class Meta:
         model = Hotel
-        fields = ['name', 'location', 'price_per', 'available_rooms']
+        fields = ['id', 'name', 'location', 'price_per', 'available_rooms', 'room_types']
+
+    def create(self, validated_data):
+        # Extract room types data from the request
+        room_types_data = validated_data.pop('room_types')
+
+        # Create the hotel instance
+        hotel = Hotel.objects.create(**validated_data)
+
+        # Create RoomType instances and associate them with the hotel
+        for room_type_data in room_types_data:
+            RoomType.objects.create(hotel=hotel, **room_type_data)
+
+        return hotel
+
+    def update(self, instance, validated_data):
+        room_types_data = validated_data.pop('room_types', None)
+
+        # Update the basic fields for the hotel
+        instance = super().update(instance, validated_data)
+
+        # Update room types
+        if room_types_data is not None:
+            # Clear the existing room types first if necessary
+            instance.room_types.clear()
+
+            # Add new room types to the hotel
+            for room_data in room_types_data:
+                room_type, created = RoomType.objects.update_or_create(
+                    hotel=instance,
+                    room_name=room_data['room_name'],
+                    defaults={'price_per_night': room_data['price_per_night'], 'available_rooms': room_data['available_rooms']}
+                )
+                instance.room_types.add(room_type)
+
+        return instance
+
+
 
