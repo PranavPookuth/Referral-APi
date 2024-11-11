@@ -210,3 +210,8 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         # Create the HotelBooking instance
         return super().create(validated_data)
 
+class HotelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hotel
+        fields = ['name', 'location', 'price_per', 'available_rooms']
+

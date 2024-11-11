@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import random
 from django.contrib.auth import login
 from rest_framework.permissions import IsAuthenticated
@@ -206,16 +208,28 @@ class HotelDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Hotel.objects.all()
     serializer_class = HotelSerializer
 
+
 class HotelBookingView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [BasicAuthentication]
 
     def post(self, request):
         serializer = HotelBookingSerializer(data=request.data)
+
         if serializer.is_valid():
             user = serializer.validated_data['name']
             hotel = serializer.validated_data['hotel']
+            number_of_rooms = serializer.validated_data['number_of_rooms']
             points_used = serializer.validated_data['points_used']
+
+            # Check if enough rooms are available for the requested date
+            check_in_date = request.data.get('check_in_date')  # Assuming this is passed in the request
+            if check_in_date:
+                check_in_date = datetime.strptime(check_in_date, "%Y-%m-%d").date()
+                available_rooms = hotel.available_on_date(check_in_date)
+                if available_rooms < number_of_rooms:
+                    return Response({"error": "Not enough rooms available for the selected date."},
+                                    status=status.HTTP_400_BAD_REQUEST)
 
             # Reduce the user's points based on the points used
             user.points -= points_used
@@ -228,7 +242,7 @@ class HotelBookingView(APIView):
             booking.apply_discount()
 
             # Reduce the available rooms for the hotel
-            hotel.available_rooms -= 1
+            hotel.available_rooms -= number_of_rooms  # Decrease by the number of rooms booked
             hotel.save()
 
             # Return a success response with the final price, discount, and booking date
@@ -243,3 +257,44 @@ class HotelBookingView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class HotelSearchView(APIView):
+    def get(self, request):
+        location = request.query_params.get('location', None)
+        check_in_date = request.query_params.get('check_in_date', None)
+        max_price = request.query_params.get('max_price', None)
+        available_rooms = None
+
+        if not check_in_date:
+            return Response({"error": "check_in_date is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parse the check_in_date using datetime.strptime
+        try:
+            check_in_date = datetime.strptime(check_in_date, "%m/%d/%Y").date()
+        except ValueError:
+            return Response({"error": "Invalid date format, expected MM/DD/YYYY"}, status=status.HTTP_400_BAD_REQUEST)
+
+        hotels = Hotel.objects.all()
+
+        if location:
+            hotels = hotels.filter(location__icontains=location)
+
+        if max_price:
+            hotels = hotels.filter(price_per__lte=max_price)
+
+        available_hotels = []
+
+        for hotel in hotels:
+            # Check room availability for the given date
+            available_rooms = hotel.available_on_date(check_in_date)
+
+            if available_rooms > 0:
+                available_hotels.append({
+                    'hotel_name': hotel.name,
+                    'location': hotel.location,
+                    'price_per_night': str(hotel.price_per),
+                    'available_rooms': available_rooms,
+                    'check_in_date': check_in_date
+                })
+
+        return Response(available_hotels, status=status.HTTP_200_OK)

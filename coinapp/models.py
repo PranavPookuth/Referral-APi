@@ -90,45 +90,64 @@ class CoinPurchase(models.Model):
 class Hotel(models.Model):
     name = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
-    price_per= models.DecimalField(max_digits=10, decimal_places=2)  # Price per night in currency
+    price_per = models.DecimalField(max_digits=10, decimal_places=2)  # Price per night in currency
     discount_per_point = models.DecimalField(max_digits=5, decimal_places=2, default=0.1)  # Discount per point
     available_rooms = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"{self.name} - {self.location}"
 
+    def available_on_date(self, date):
+        # Returns the available rooms on a particular date
+        availability = self.roomavailabilities.filter(date=date)
+        if availability.exists():
+            return availability.first().available_rooms
+        return self.available_rooms
+
+class RoomType(models.Model):
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="room_types",null=True)
+    room_name = models.CharField(max_length=255,null=True)
+    price_per_night = models.DecimalField(max_digits=10, decimal_places=2)  # Price for the room type
+    available_rooms = models.PositiveIntegerField(default=0)  # Number of available rooms for this type
+
+    def __str__(self):
+        return f"{self.room_name} - {self.hotel.name}"
+
+
+class RoomAvailability(models.Model):
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="roomavailabilities")
+    date = models.DateField()  # Date for room availability
+    available_rooms = models.PositiveIntegerField(default=0)  # Number of rooms available on this date
+
+    def __str__(self):
+        return f"{self.hotel.name} - {self.date} - {self.available_rooms} rooms"
+
 
 class HotelBooking(models.Model):
     name = models.ForeignKey(User, on_delete=models.CASCADE, related_name="hotel_bookings")
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="bookings")
+    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name="bookings",null=True)  # Added room_type
     number_of_rooms = models.PositiveIntegerField()
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_applied = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     points_used = models.PositiveIntegerField(default=0)
     booking_date = models.DateTimeField(auto_now_add=True)
+
     def __str__(self):
-        return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} rooms on{self.booking_date}"
+        return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} {self.room_type.room_name} rooms on {self.booking_date}"
 
     def apply_discount(self):
-        """
-        Calculate the discount based on points used, apply it to the total price, and update the total price.
-        """
         if self.points_used > 0:
-            # Discount per point is 10 rupees
             discount_per_point = Decimal(10)
             discount = Decimal(self.points_used) * discount_per_point  # Discount based on points used
 
-            # Ensure the discount does not exceed 50% of the total price
             max_discount = self.total_price * Decimal('0.5')  # Max discount is 50% of total price
             self.discount_applied = min(discount, max_discount)  # Apply the lesser of discount or max discount
 
-            # Apply the discount to the total price, ensuring it doesn't go below zero
             self.total_price -= self.discount_applied
             self.total_price = max(self.total_price, Decimal('0.00'))  # Prevent negative total price
         else:
-            # If no points are used, there is no discount
             self.discount_applied = Decimal('0.00')
 
         self.save()
-
 

@@ -19,6 +19,10 @@ urlpatterns = [
     path('hotels/', views.HotelListCreateView.as_view(), name='hotel-list-create'),
     path('hotels/<int:pk>/', views.HotelDetailView.as_view(), name='hotel-detail'),
     path('book-hotel/', views.HotelBookingView.as_view(), name='hotel-booking'),
+    path('hotels/search/', HotelSearchView.as_view(), name='hotel-search'),
+
+    # URL for creating a booking
+    path('hotels/book/', HotelBookingView.as_view(), name='hotel-booking'),
 
 
 ]
