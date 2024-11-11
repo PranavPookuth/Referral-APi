@@ -331,7 +331,7 @@ class HotelBookingView(APIView):
             # Return the serialized booking data
             return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
 class HotelSearchView(APIView):
     def get(self, request):
