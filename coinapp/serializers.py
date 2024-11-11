@@ -255,7 +255,7 @@ class HotelSerializer(serializers.ModelSerializer):
                     room_name=room_data['room_name'],
                     defaults={'price_per_night': room_data['price_per_night'], 'available_rooms': room_data['available_rooms']}
                 )
- instance.room_types.add(room_type)
+                instance.room_types.add(room_type)
 
         return instance
 
