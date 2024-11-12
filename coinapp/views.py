@@ -308,7 +308,7 @@ class HotelBookingView(APIView):
 
         if serializer.is_valid():
             # Save the booking and update room availability
-            booking = serializer.save()
+            booking = serializer.save( )
 
             # Return the booking data with status 201 Created
             return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
