@@ -265,9 +265,13 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     room_type_name = serializers.CharField(write_only=True)
     check_in_date = serializers.DateField(write_only=True)
 
+    # Include user-related fields
+    user_name = serializers.CharField(source='user.username', read_only=True)  # Include username
+
     class Meta:
         model = HotelBooking
-        fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'points_used', 'total_price', 'name', 'user']
+        fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'points_used', 'total_price',
+                  'name', 'user', 'user_name']
 
     def create(self, validated_data):
         hotel_name = validated_data['hotel_name']
@@ -277,19 +281,22 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         check_in_date = validated_data['check_in_date']
         user = validated_data.get('user', None)
 
+        # Look up the Hotel by name
         try:
             hotel = Hotel.objects.get(name=hotel_name)
         except Hotel.DoesNotExist:
             raise serializers.ValidationError(f"Hotel with name '{hotel_name}' not found.")
 
+        # Look up the RoomType by name and filter by hotel
         try:
             room_type = RoomType.objects.get(room_name=room_type_name, hotel=hotel)
         except RoomType.DoesNotExist:
             raise serializers.ValidationError(f"Room type '{room_type_name}' not found in hotel '{hotel_name}'.")
 
+        # Calculate the total price based on the room type and number of rooms
         total_price = room_type.price_per_night * number_of_rooms
 
-        # Create the HotelBooking instance with 'name' set to 'user'
+        # Create the booking
         booking = HotelBooking.objects.create(
             hotel=hotel,
             room_type=room_type,
@@ -298,8 +305,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             points_used=points_used,
             check_in_date=check_in_date,
             user=user,
-            name=user  # Explicitly set the 'name' ForeignKey to user
+            name=user  # Ensure the 'name' field is set to the same User instance
         )
 
         return booking
-
