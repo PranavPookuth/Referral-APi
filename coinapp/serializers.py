@@ -265,7 +265,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     room_type_name = serializers.CharField(write_only=True)
     check_in_date = serializers.DateField(write_only=True)
 
-    # Include user-related fields
+    user = serializers.CharField(source='user.user', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)  # Include username
 
     class Meta:
@@ -279,7 +279,9 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         number_of_rooms = validated_data['number_of_rooms']
         points_used = validated_data['points_used']
         check_in_date = validated_data['check_in_date']
-        user = validated_data.get('user', None)
+
+        # Get the authenticated user from the context
+        user = self.context['request'].user  # Assuming you're using DRF's authentication
 
         # Look up the Hotel by name
         try:
@@ -296,7 +298,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         # Calculate the total price based on the room type and number of rooms
         total_price = room_type.price_per_night * number_of_rooms
 
-        # Create the booking
+        # Create the booking with the user and hotel data
         booking = HotelBooking.objects.create(
             hotel=hotel,
             room_type=room_type,
@@ -304,8 +306,11 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             total_price=total_price,
             points_used=points_used,
             check_in_date=check_in_date,
-            user=user,
-            name=user  # Ensure the 'name' field is set to the same User instance
+            user=user,  # Ensure 'user' is set correctly
+            name=user   # Ensure 'name' is set correctly (or use 'name' as the user's name)
         )
 
         return booking
+
+
+

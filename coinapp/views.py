@@ -303,7 +303,8 @@ class HotelBookingView(APIView):
         }
 
         # Use the HotelBookingSerializer to validate and save the data
-        serializer = HotelBookingSerializer(data=booking_data)
+        # Pass 'request' as part of the context to the serializer
+        serializer = HotelBookingSerializer(data=booking_data, context={'request': request})
 
         if serializer.is_valid():
             # Save the booking and update room availability
@@ -313,6 +314,7 @@ class HotelBookingView(APIView):
             return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 

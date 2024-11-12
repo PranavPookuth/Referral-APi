@@ -7,7 +7,7 @@ from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
 from django.contrib.auth.models import AbstractUser, Permission, Group, PermissionsMixin
 from django.db import models
 from decimal import Decimal
-from django.utils import timezone
+
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, referred_by=None, **extra_fields):
@@ -99,7 +99,7 @@ class Hotel(models.Model):
     room_types = models.ManyToManyField('RoomType', related_name="hotels", blank=True)
 
     def __str__(self):
-        return f"Booking for {self.hotel.name} on {self.check_in_date}"
+        return f"Booking for {self.name} on {self.check_in_date}"
 
     def available_on_date(self, date, room_type_name=None):
         print(f"Checking availability for hotel: {self.name}, on {date}, for room type: {room_type_name}")
@@ -158,10 +158,11 @@ class HotelBooking(models.Model):
     discount_applied = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     points_used = models.PositiveIntegerField(default=0)
     booking_date = models.DateTimeField(auto_now_add=True)
-    check_in_date = models.DateField(default=timezone.now)
+    check_in_date = models.DateField()
 
     def __str__(self):
         return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} {self.room_type.room_name} rooms on {self.booking_date}"
+
 
     def apply_discount(self):
         if self.points_used > 0:
