@@ -7,7 +7,7 @@ from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
 from django.contrib.auth.models import AbstractUser, Permission, Group, PermissionsMixin
 from django.db import models
 from decimal import Decimal
-
+from django.utils import timezone
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, referred_by=None, **extra_fields):
@@ -93,29 +93,40 @@ class Hotel(models.Model):
     price_per = models.DecimalField(max_digits=10, decimal_places=2)  # Price per night in currency
     discount_per_point = models.DecimalField(max_digits=5, decimal_places=2, default=0.1)  # Discount per point
     available_rooms = models.PositiveIntegerField(default=0)
+    check_in_date = models.DateField()
 
     # Changed related_name to avoid clashes and use string reference for RoomType
     room_types = models.ManyToManyField('RoomType', related_name="hotels", blank=True)
 
     def __str__(self):
-        return f"{self.name} - {self.location}"
+        return f"Booking for {self.hotel.name} on {self.check_in_date}"
 
     def available_on_date(self, date, room_type_name=None):
-        # Returns the available rooms on a particular date
+        print(f"Checking availability for hotel: {self.name}, on {date}, for room type: {room_type_name}")
+
+        # Check for specific availability for the given date (using RoomAvailability)
         availability = self.roomavailabilities.filter(date=date)
 
         if availability.exists():
             available_rooms = availability.first().available_rooms
+            print(f"Found specific availability for {date}: {available_rooms} rooms")
         else:
-            available_rooms = self.available_rooms  # Fallback to default hotel-wide available rooms
+            available_rooms = self.available_rooms  # Fallback to hotel-wide available rooms
+            print(
+                f"No specific availability found for {date}, fallback to hotel-wide availability: {available_rooms} rooms")
 
+        # If room_type_name is provided, check for availability of the specific room type
         if room_type_name:
-            # Check availability for a specific room type
             room_type = self.room_types.filter(room_name__icontains=room_type_name).first()
             if room_type:
-                # Check available rooms for the specific room type
-                return min(available_rooms, room_type.available_rooms)
-            return 0  # If no room type found, return 0 available rooms
+                print(f"Found room type {room_type_name} with {room_type.available_rooms} rooms available.")
+                # Here we get the available rooms for the room type and return the minimum of room availability
+                available_rooms_for_room_type = min(available_rooms, room_type.available_rooms)
+                print(
+                    f"Room type {room_type_name} has {room_type.available_rooms} rooms available. Limited by {available_rooms_for_room_type} available rooms.")
+                return available_rooms_for_room_type
+            print(f"Room type {room_type_name} not found.")
+            return 0  # If no room type is found, return 0 available rooms
 
         return available_rooms
 
@@ -138,14 +149,16 @@ class RoomAvailability(models.Model):
         return f"{self.hotel.name} - {self.date} - {self.available_rooms} rooms"
 
 class HotelBooking(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.ForeignKey(User, on_delete=models.CASCADE, related_name="hotel_bookings")
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="bookings")
-    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name="bookings", null=True)  # Added room_type
+    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name="bookings", null=True)
     number_of_rooms = models.PositiveIntegerField()
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_applied = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     points_used = models.PositiveIntegerField(default=0)
     booking_date = models.DateTimeField(auto_now_add=True)
+    check_in_date = models.DateField(default=timezone.now)
 
     def __str__(self):
         return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} {self.room_type.room_name} rooms on {self.booking_date}"

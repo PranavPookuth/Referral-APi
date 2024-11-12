@@ -149,16 +149,15 @@ class HotelSerializer(serializers.ModelSerializer):
 
 
 class HotelBookingSerializer(serializers.ModelSerializer):
-    # Use PrimaryKeyRelatedField for ForeignKey fields
     name = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     hotel = serializers.PrimaryKeyRelatedField(queryset=Hotel.objects.all())
     room_type = serializers.PrimaryKeyRelatedField(queryset=RoomType.objects.all())
     points_used = serializers.IntegerField(required=False, default=0)
-    number_of_rooms = serializers.IntegerField()  # Add this field to the serializer
 
     class Meta:
         model = HotelBooking
         fields = ['name', 'hotel', 'room_type', 'number_of_rooms', 'points_used']
+
     def validate(self, data):
         # Fetch the user and hotel from the validated data
         name = data.get('name')
@@ -212,6 +211,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
 
         return data
 
+
 class RoomTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomType
@@ -260,4 +260,46 @@ class HotelSerializer(serializers.ModelSerializer):
         return instance
 
 
+class HotelBookingSerializer(serializers.ModelSerializer):
+    hotel_name = serializers.CharField(write_only=True)
+    room_type_name = serializers.CharField(write_only=True)
+    check_in_date = serializers.DateField(write_only=True)
+
+    class Meta:
+        model = HotelBooking
+        fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'points_used', 'total_price', 'name', 'user']
+
+    def create(self, validated_data):
+        hotel_name = validated_data['hotel_name']
+        room_type_name = validated_data['room_type_name']
+        number_of_rooms = validated_data['number_of_rooms']
+        points_used = validated_data['points_used']
+        check_in_date = validated_data['check_in_date']
+        user = validated_data.get('user', None)
+
+        try:
+            hotel = Hotel.objects.get(name=hotel_name)
+        except Hotel.DoesNotExist:
+            raise serializers.ValidationError(f"Hotel with name '{hotel_name}' not found.")
+
+        try:
+            room_type = RoomType.objects.get(room_name=room_type_name, hotel=hotel)
+        except RoomType.DoesNotExist:
+            raise serializers.ValidationError(f"Room type '{room_type_name}' not found in hotel '{hotel_name}'.")
+
+        total_price = room_type.price_per_night * number_of_rooms
+
+        # Create the HotelBooking instance with 'name' set to 'user'
+        booking = HotelBooking.objects.create(
+            hotel=hotel,
+            room_type=room_type,
+            number_of_rooms=number_of_rooms,
+            total_price=total_price,
+            points_used=points_used,
+            check_in_date=check_in_date,
+            user=user,
+            name=user  # Explicitly set the 'name' ForeignKey to user
+        )
+
+        return booking
 

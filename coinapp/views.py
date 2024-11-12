@@ -258,15 +258,15 @@ class HotelBookingView(APIView):
     authentication_classes = [BasicAuthentication]
 
     def post(self, request):
-        hotel_id = request.data.get('hotel_id')
-        room_type_id = request.data.get('room_type_id')
+        hotel_name = request.data.get('hotel_name')
+        room_type_name = request.data.get('room_type_name')
         number_of_rooms = request.data.get('number_of_rooms')
-        points_used = request.data.get('points_used', 0)  # Optional field
-        check_in_date = request.data.get('check_in_date')  # Assuming user provides a check-in date
-        user = request.user  # Get the authenticated user
+        points_used = request.data.get('points_used', 0)
+        check_in_date = request.data.get('check_in_date')
+        user = request.user  # The authenticated user
 
-        # Validate the input data
-        if not hotel_id or not room_type_id or not number_of_rooms or not check_in_date:
+        # Validate input
+        if not hotel_name or not room_type_name or not number_of_rooms or not check_in_date:
             return Response({"error": "Missing required fields."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Convert the check-in date to a datetime object
@@ -275,63 +275,47 @@ class HotelBookingView(APIView):
         except ValueError:
             return Response({"error": "Invalid date format, expected MM/DD/YYYY"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch hotel and room type
-        hotel = get_object_or_404(Hotel, id=hotel_id)
-        room_type = get_object_or_404(RoomType, id=room_type_id)
+        # Look up the Hotel by name
+        try:
+            hotel = Hotel.objects.get(name=hotel_name)
+        except Hotel.DoesNotExist:
+            return Response({"error": f"Hotel with name '{hotel_name}' not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if there are enough available rooms on the specific date
-        available_rooms_on_date = hotel.available_on_date(check_in_date, room_type.room_name if room_type else None)
-        if available_rooms_on_date < number_of_rooms:
-            return Response({"error": "Not enough rooms available for the selected date and room type."},
-                            status=status.HTTP_400_BAD_REQUEST)
+        # Look up the RoomType by name and filter by hotel
+        try:
+            room_type = RoomType.objects.get(room_name=room_type_name, hotel=hotel)
+        except RoomType.DoesNotExist:
+            return Response({"error": f"Room type '{room_type_name}' not found in hotel '{hotel_name}'."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Calculate the total price based on room price and number of rooms
+        # Calculate the total price
         total_price = room_type.price_per_night * number_of_rooms
 
-        # Apply discount based on points used
-        discount_per_point = Decimal(10)  # Assume 10 rupees per point
-        discount = points_used * discount_per_point
-        max_discount = total_price * Decimal('0.5')  # Max discount is 50% of total price
-        actual_discount = min(discount, max_discount)
-
-        # Deduct discount from total price
-        discounted_price = total_price - actual_discount
-        discounted_price = max(discounted_price, Decimal('0.00'))  # Ensure the price doesn't go below zero
-
-        # Ensure the user has enough points
-        if points_used > user.points:
-            return Response({"error": "Not enough points."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Create the booking
+        # Create the booking data, including the 'name' field with the authenticated user
         booking_data = {
-            "name": user,
-            "hotel": hotel,
-            "room_type": room_type,
+            "hotel_name": hotel_name,
+            "room_type_name": room_type_name,
             "number_of_rooms": number_of_rooms,
-            "total_price": discounted_price,
+            "check_in_date": check_in_date,
             "points_used": points_used,
+            "user": user.id,  # The authenticated user for the 'user' field
+            "name": user.id,  # The authenticated user for the 'name' field (this is the issue)
+            "total_price": total_price  # Total price is now calculated here
         }
 
-        # Serialize and save the booking
+        # Use the HotelBookingSerializer to validate and save the data
         serializer = HotelBookingSerializer(data=booking_data)
 
         if serializer.is_valid():
+            # Save the booking and update room availability
             booking = serializer.save()
 
-            # Update room and hotel availability after booking
-            hotel.available_rooms -= number_of_rooms
-            room_type.available_rooms -= number_of_rooms
-            hotel.save()
-            room_type.save()
-
-            # Deduct points from user account
-            user.points -= points_used
-            user.save()
-
-            # Return the serialized booking data
+            # Return the booking data with status 201 Created
             return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
 class HotelSearchView(APIView):
     def get(self, request):
