@@ -316,27 +316,32 @@ class HotelBookingView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
 class HotelSearchView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [BasicAuthentication]
+
     def get(self, request):
         location = request.query_params.get('location', None)
         check_in_date = request.query_params.get('check_in_date', None)
         max_price = request.query_params.get('max_price', None)
-        room_name = request.query_params.get('room_name', None)  # Room name to filter by
+        room_name = request.query_params.get('room_name', None)  # Room type to search for
+        hotel_name = request.query_params.get('hotel_name', None)  # Hotel name to search for
 
+        # Ensure check_in_date is provided
         if not check_in_date:
             return Response({"error": "check_in_date is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Parse the check_in_date using datetime.strptime
+        # Parse the check_in_date
         try:
             check_in_date = datetime.strptime(check_in_date, "%m/%d/%Y").date()
         except ValueError:
             return Response({"error": "Invalid date format, expected MM/DD/YYYY"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Start filtering hotels
         hotels = Hotel.objects.all()
+
+        if hotel_name:
+            hotels = hotels.filter(name__icontains=hotel_name)
 
         if location:
             hotels = hotels.filter(location__icontains=location)
@@ -347,19 +352,28 @@ class HotelSearchView(APIView):
         available_hotels = []
 
         for hotel in hotels:
-            # Check room availability for the given date and room_name (if provided)
-            available_rooms = hotel.available_on_date(check_in_date, room_name)
+            # Check availability of the specific room type for the given date
+            available_rooms = hotel.available_on_date(check_in_date, room_type_name=room_name)
 
             if available_rooms > 0:
+                # Filter room types by name if provided, otherwise get all room types for that hotel
                 room_types = hotel.room_types.filter(room_name__icontains=room_name) if room_name else hotel.room_types.all()
+
+                # Serialize the hotel with the filtered room types
                 available_hotels.append({
                     'hotel_name': hotel.name,
                     'location': hotel.location,
                     'price_per_night': str(hotel.price_per),
                     'available_rooms': available_rooms,
-                    'room_types': RoomTypeSerializer(room_types, many=True).data,  # Serialize room types
+                    'room_types': RoomTypeSerializer(room_types, many=True).data,  # Serialize the room types
                     'check_in_date': check_in_date
                 })
 
+        if not available_hotels:
+            return Response({"error": "No hotels found matching the criteria."}, status=status.HTTP_404_NOT_FOUND)
+
         return Response(available_hotels, status=status.HTTP_200_OK)
+
+
+
 

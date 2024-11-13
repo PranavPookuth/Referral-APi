@@ -264,7 +264,7 @@ class HotelSerializer(serializers.ModelSerializer):
 class HotelBookingSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(write_only=True)
     room_type_name = serializers.CharField(write_only=True)
-    check_in_date = serializers.DateField(write_only=True)
+    check_in_date = serializers.DateField()
 
     user = serializers.CharField(source='user.user', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
@@ -339,3 +339,4 @@ class HotelBookingSerializer(serializers.ModelSerializer):
 
         # Format the datetime to exclude microseconds and timezone info
         return booking_date_ist.strftime('%Y-%m-%d %H:%M:%S')
+
