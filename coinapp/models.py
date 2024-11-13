@@ -94,8 +94,6 @@ class Hotel(models.Model):
     discount_per_point = models.DecimalField(max_digits=5, decimal_places=2, default=0.1)  # Discount per point
     available_rooms = models.PositiveIntegerField(default=0)
     check_in_date = models.DateField()
-
-    # Changed related_name to avoid clashes and use string reference for RoomType
     room_types = models.ManyToManyField('RoomType', related_name="hotels", blank=True)
 
     def __str__(self):
@@ -168,7 +166,6 @@ class HotelBooking(models.Model):
         if self.points_used > 0:
             discount_per_point = Decimal(10)
             discount = Decimal(self.points_used) * discount_per_point  # Discount based on points used
-
             max_discount = self.total_price * Decimal('0.5')  # Max discount is 50% of total price
             self.discount_applied = min(discount, max_discount)  # Apply the lesser of discount or max discount
 

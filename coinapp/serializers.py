@@ -295,10 +295,14 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         except RoomType.DoesNotExist:
             raise serializers.ValidationError(f"Room type '{room_type_name}' not found in hotel '{hotel_name}'.")
 
+        # Check if there are enough rooms available
+        if room_type.available_rooms < number_of_rooms:
+            raise serializers.ValidationError(f"Not enough rooms available for '{room_type_name}' at '{hotel_name}'.")
+
         # Calculate the total price based on the room type and number of rooms
         total_price = room_type.price_per_night * number_of_rooms
 
-        # Create the booking with the user and hotel data
+        # Create the booking
         booking = HotelBooking.objects.create(
             hotel=hotel,
             room_type=room_type,
@@ -307,10 +311,15 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             points_used=points_used,
             check_in_date=check_in_date,
             user=user,  # Ensure 'user' is set correctly
-            name=user   # Ensure 'name' is set correctly (or use 'name' as the user's name)
+            name=user  # Ensure 'name' is set correctly
         )
 
+        # Decrease the available rooms in the RoomType and Hotel
+        room_type.available_rooms -= number_of_rooms
+        room_type.save()
+
+        hotel.available_rooms -= number_of_rooms
+        hotel.save()
+
         return booking
-
-
 

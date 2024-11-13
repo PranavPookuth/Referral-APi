@@ -317,9 +317,9 @@ class HotelBookingView(APIView):
 
 
 
-
-
 class HotelSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
     def get(self, request):
         location = request.query_params.get('location', None)
         check_in_date = request.query_params.get('check_in_date', None)
