@@ -158,34 +158,36 @@ class HotelBooking(models.Model):
     points_used = models.PositiveIntegerField(default=0)
     booking_date = models.DateTimeField(auto_now_add=True)
     check_in_date = models.DateField()
+    check_out_date = models.DateField()
 
     def __str__(self):
         return f"Booking by {self.name.email} at {self.hotel.name} for {self.number_of_rooms} {self.room_type.room_name} rooms on {self.booking_date}"
 
+    def get_total_nights(self):
+        """
+        Calculate the total number of nights for the booking based on check-in and check-out dates.
+        """
+        return (self.check_out_date - self.check_in_date).days
 
     def apply_discount(self):
         """
-        This method applies a discount based on points used.
-        Points used should give a discount of 10 currency units per point.
-        The maximum discount is capped at 50% of the total price.
+        Apply discount logic. This will now take into account the total number of nights.
         """
+        total_nights = self.get_total_nights()
+        total_price = self.room_type.price_per_night * total_nights * self.number_of_rooms
+
+        # Discount logic
         if self.points_used > 0:
-            discount_per_point = Decimal(10)  # 10 currency units per point
-            discount = Decimal(self.points_used) * discount_per_point  # Total discount based on points used
+            discount_per_point = Decimal(10)  # e.g., 10 currency units per point
+            discount = Decimal(self.points_used) * discount_per_point
 
-            max_discount = self.total_price * Decimal('0.5')  # Maximum discount is 50% of the total price
-            self.discount_applied = min(discount, max_discount)  # Apply the lesser of discount or max discount
+            max_discount = total_price * Decimal('0.5')  # Max discount 50% of total price
+            self.discount_applied = min(discount, max_discount)
 
-            self.total_price -= self.discount_applied
-            self.total_price = max(self.total_price, Decimal('0.00'))  # Prevent negative total price
+            self.total_price = total_price - self.discount_applied
+            self.total_price = max(self.total_price, Decimal('0.00'))  # Ensure the price is not negative
         else:
             self.discount_applied = Decimal('0.00')
+            self.total_price = total_price
 
         self.save()
-
-    def booking_date_in_ist(self):
-        """
-        Convert the booking date (stored in UTC) to IST (Indian Standard Time).
-        """
-        # Convert the UTC time to IST (UTC +5:30)
-        return self.booking_date.astimezone(timezone.pytz.timezone('Asia/Kolkata'))

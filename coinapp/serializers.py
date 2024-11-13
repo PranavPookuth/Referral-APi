@@ -265,6 +265,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     hotel_name = serializers.CharField(write_only=True)
     room_type_name = serializers.CharField(write_only=True)
     check_in_date = serializers.DateField()
+    check_out_date = serializers.DateField()  # Add check-out date field
 
     user = serializers.CharField(source='user.user', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
@@ -272,7 +273,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HotelBooking
-        fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'points_used', 'total_price',
+        fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'check_out_date', 'points_used', 'total_price',
                   'name', 'user', 'user_name', 'booking_date']
 
     def create(self, validated_data):
@@ -281,6 +282,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         number_of_rooms = validated_data['number_of_rooms']
         points_used = validated_data['points_used']
         check_in_date = validated_data['check_in_date']
+        check_out_date = validated_data['check_out_date']  # New field for check-out date
 
         # Get the authenticated user from the context
         user = self.context['request'].user
@@ -301,8 +303,9 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         if room_type.available_rooms < number_of_rooms:
             raise serializers.ValidationError(f"Not enough rooms available for '{room_type_name}' at '{hotel_name}'.")
 
-        # Calculate the total price
-        total_price = room_type.price_per_night * number_of_rooms
+        # Calculate the total price based on the number of nights
+        total_nights = (check_out_date - check_in_date).days
+        total_price = room_type.price_per_night * total_nights * number_of_rooms
 
         # Create the booking
         booking = HotelBooking.objects.create(
@@ -312,6 +315,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             total_price=total_price,
             points_used=points_used,
             check_in_date=check_in_date,
+            check_out_date=check_out_date,  # Save check-out date
             user=user,  # Ensure 'user' is set correctly
             name=user  # Ensure 'name' is set correctly
         )
@@ -330,7 +334,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
 
     def get_booking_date(self, obj):
         """
-        Convert booking_date to IST (Indian Standard Time) and format it.
+        Convert the booking_date to IST (Indian Standard Time) and format it.
         """
         # Ensure booking_date is in UTC and convert to IST
         ist = pytz.timezone('Asia/Kolkata')  # IST timezone

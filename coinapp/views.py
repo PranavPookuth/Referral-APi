@@ -252,7 +252,6 @@ class HotelDetailView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class HotelBookingView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [BasicAuthentication]
@@ -263,17 +262,23 @@ class HotelBookingView(APIView):
         number_of_rooms = request.data.get('number_of_rooms')
         points_used = request.data.get('points_used', 0)
         check_in_date = request.data.get('check_in_date')
+        check_out_date = request.data.get('check_out_date')  # Get check-out date from request
         user = request.user  # The authenticated user
 
         # Validate input
-        if not hotel_name or not room_type_name or not number_of_rooms or not check_in_date:
+        if not hotel_name or not room_type_name or not number_of_rooms or not check_in_date or not check_out_date:
             return Response({"error": "Missing required fields."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Convert the check-in date to a datetime object
+        # Convert the check-in and check-out dates to datetime objects
         try:
             check_in_date = datetime.strptime(check_in_date, "%m/%d/%Y").date()
+            check_out_date = datetime.strptime(check_out_date, "%m/%d/%Y").date()
         except ValueError:
             return Response({"error": "Invalid date format, expected MM/DD/YYYY"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure that check-out date is after check-in date
+        if check_out_date <= check_in_date:
+            return Response({"error": "Check-out date must be after check-in date."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Look up the Hotel by name
         try:
@@ -287,33 +292,31 @@ class HotelBookingView(APIView):
         except RoomType.DoesNotExist:
             return Response({"error": f"Room type '{room_type_name}' not found in hotel '{hotel_name}'."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Calculate the total price
-        total_price = room_type.price_per_night * number_of_rooms
+        # Calculate the total price based on the number of nights
+        total_nights = (check_out_date - check_in_date).days
+        total_price = room_type.price_per_night * total_nights * number_of_rooms
 
-        # Create the booking data, including the 'name' field with the authenticated user
+        # Create the booking data
         booking_data = {
             "hotel_name": hotel_name,
             "room_type_name": room_type_name,
             "number_of_rooms": number_of_rooms,
             "check_in_date": check_in_date,
+            "check_out_date": check_out_date,  # Include check-out date
             "points_used": points_used,
-            "user": user.id,  # The authenticated user for the 'user' field
-            "name": user.id,  # The authenticated user for the 'name' field
-            "total_price": total_price  # Total price is now calculated here
+            "user": user.id,
+            "name": user.id,
+            "total_price": total_price
         }
 
-        # Use the HotelBookingSerializer to validate and save the data
-        # Pass 'request' as part of the context to the serializer
         serializer = HotelBookingSerializer(data=booking_data, context={'request': request})
 
         if serializer.is_valid():
-            # Save the booking and update room availability
             booking = serializer.save()
-
-            # Return the booking data with status 201 Created
             return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class HotelSearchView(APIView):
