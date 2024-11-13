@@ -268,10 +268,13 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     user = serializers.CharField(source='user.user', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)  # Include username
 
+    # Include booking_date in the serialized output
+    booking_date = serializers.DateTimeField(read_only=True)
+
     class Meta:
         model = HotelBooking
         fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'points_used', 'total_price',
-                  'name', 'user', 'user_name']
+                  'name', 'user', 'user_name', 'booking_date']  # Include booking_date in the fields
 
     def create(self, validated_data):
         hotel_name = validated_data['hotel_name']
@@ -322,4 +325,5 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         hotel.save()
 
         return booking
+
 

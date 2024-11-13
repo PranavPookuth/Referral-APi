@@ -298,7 +298,7 @@ class HotelBookingView(APIView):
             "check_in_date": check_in_date,
             "points_used": points_used,
             "user": user.id,  # The authenticated user for the 'user' field
-            "name": user.id,  # The authenticated user for the 'name' field (this is the issue)
+            "name": user.id,  # The authenticated user for the 'name' field
             "total_price": total_price  # Total price is now calculated here
         }
 
@@ -314,6 +314,7 @@ class HotelBookingView(APIView):
             return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
