@@ -135,3 +135,6 @@ AUTHENTICATION_BACKENDS = (
 )
 
 AUTH_USER_MODEL = 'coinapp.User'
+
+TIME_ZONE = 'Asia/Kolkata'  # Set the default time zone to IST
+USE_TZ = True

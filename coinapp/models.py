@@ -1,4 +1,5 @@
 import uuid
+from datetime import timezone
 
 from django.db import models
 
@@ -163,10 +164,16 @@ class HotelBooking(models.Model):
 
 
     def apply_discount(self):
+        """
+        This method applies a discount based on points used.
+        Points used should give a discount of 10 currency units per point.
+        The maximum discount is capped at 50% of the total price.
+        """
         if self.points_used > 0:
-            discount_per_point = Decimal(10)
-            discount = Decimal(self.points_used) * discount_per_point  # Discount based on points used
-            max_discount = self.total_price * Decimal('0.5')  # Max discount is 50% of total price
+            discount_per_point = Decimal(10)  # 10 currency units per point
+            discount = Decimal(self.points_used) * discount_per_point  # Total discount based on points used
+
+            max_discount = self.total_price * Decimal('0.5')  # Maximum discount is 50% of the total price
             self.discount_applied = min(discount, max_discount)  # Apply the lesser of discount or max discount
 
             self.total_price -= self.discount_applied
@@ -175,3 +182,10 @@ class HotelBooking(models.Model):
             self.discount_applied = Decimal('0.00')
 
         self.save()
+
+    def booking_date_in_ist(self):
+        """
+        Convert the booking date (stored in UTC) to IST (Indian Standard Time).
+        """
+        # Convert the UTC time to IST (UTC +5:30)
+        return self.booking_date.astimezone(timezone.pytz.timezone('Asia/Kolkata'))

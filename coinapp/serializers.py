@@ -1,3 +1,4 @@
+import pytz
 from django.contrib.auth import  authenticate
 from rest_framework import serializers
 from .models import *
@@ -266,15 +267,13 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     check_in_date = serializers.DateField(write_only=True)
 
     user = serializers.CharField(source='user.user', read_only=True)
-    user_name = serializers.CharField(source='user.username', read_only=True)  # Include username
-
-    # Include booking_date in the serialized output
-    booking_date = serializers.DateTimeField(read_only=True)
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    booking_date = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = HotelBooking
         fields = ['hotel_name', 'room_type_name', 'number_of_rooms', 'check_in_date', 'points_used', 'total_price',
-                  'name', 'user', 'user_name', 'booking_date']  # Include booking_date in the fields
+                  'name', 'user', 'user_name', 'booking_date']
 
     def create(self, validated_data):
         hotel_name = validated_data['hotel_name']
@@ -284,7 +283,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         check_in_date = validated_data['check_in_date']
 
         # Get the authenticated user from the context
-        user = self.context['request'].user  # Assuming you're using DRF's authentication
+        user = self.context['request'].user
 
         # Look up the Hotel by name
         try:
@@ -302,7 +301,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         if room_type.available_rooms < number_of_rooms:
             raise serializers.ValidationError(f"Not enough rooms available for '{room_type_name}' at '{hotel_name}'.")
 
-        # Calculate the total price based on the room type and number of rooms
+        # Calculate the total price
         total_price = room_type.price_per_night * number_of_rooms
 
         # Create the booking
@@ -324,6 +323,19 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         hotel.available_rooms -= number_of_rooms
         hotel.save()
 
+        # Apply the discount based on points used
+        booking.apply_discount()
+
         return booking
 
+    def get_booking_date(self, obj):
+        """
+        Convert booking_date to IST (Indian Standard Time) and format it.
+        """
+        # Ensure booking_date is in UTC and convert to IST
+        ist = pytz.timezone('Asia/Kolkata')  # IST timezone
+        booking_date_utc = obj.booking_date.astimezone(pytz.utc)  # Make sure it's in UTC
+        booking_date_ist = booking_date_utc.astimezone(ist)  # Convert to IST
 
+        # Format the datetime to exclude microseconds and timezone info
+        return booking_date_ist.strftime('%Y-%m-%d %H:%M:%S')
