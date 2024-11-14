@@ -316,7 +316,7 @@ class HotelBookingView(APIView):
             "total_price": total_price
         }
 
-        serializer = HotelBookingSerializer( data=booking_data, context={'request': request})
+        serializer = HotelBookingSerializer(data=booking_data, context={'request': request})
 
         if serializer.is_valid():
             booking = serializer.save()
