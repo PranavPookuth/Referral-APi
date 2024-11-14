@@ -2,6 +2,7 @@ from datetime import datetime
 
 import random
 from django.contrib.auth import login
+from django.utils.timezone import now
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import  BasicAuthentication
 
@@ -278,7 +279,13 @@ class HotelBookingView(APIView):
 
         # Ensure that check-out date is after check-in date
         if check_out_date <= check_in_date:
-            return Response({"error": "Check-out date must be after check-in date."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Check-out date must be after check-in date."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure the check-in date is not in the past
+        current_date = now().date()  # Get current date in the same format
+        if check_in_date < current_date:
+            return Response({"error": "Check-in date cannot be in the past."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Look up the Hotel by name
         try:
@@ -313,7 +320,19 @@ class HotelBookingView(APIView):
 
         if serializer.is_valid():
             booking = serializer.save()
-            return Response(HotelBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
+
+            # Return the booking details, including the `booking_id`
+            return Response({
+                "booking_id": booking.id,  # Include booking ID in the response
+                "hotel_name": booking.hotel.name,
+                "room_type_name": booking.room_type.room_name if booking.room_type else "N/A",
+                "number_of_rooms": booking.number_of_rooms,
+                "total_price": str(booking.total_price),  # Convert Decimal to string for JSON serialization
+                "check_in_date": booking.check_in_date,
+                "check_out_date": booking.check_out_date,
+                "points_used": booking.points_used,
+                "discount_applied": str(booking.discount_applied)
+            }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -377,6 +396,46 @@ class HotelSearchView(APIView):
 
         return Response(available_hotels, status=status.HTTP_200_OK)
 
+
+class HotelBookingDetailsView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [BasicAuthentication]
+
+    def get(self, request, booking_id):
+        """
+        Retrieve the booking details for a specific booking by ID.
+        The booking should belong to the authenticated user.
+        """
+        try:
+            # Fetch the booking using the booking ID and ensure it belongs to the authenticated user
+            booking = HotelBooking.objects.get(id=booking_id, user=request.user)
+
+            # Fallback mechanism for user name if first_name and last_name are empty
+            if booking.name.first_name or booking.name.last_name:
+                user_name = f"{booking.name.first_name} {booking.name.last_name}".strip()
+            else:
+                user_name = booking.name.username if booking.name.username else booking.name.email
+
+            # Return booking details
+            booking_data = {
+                "name": user_name,  # Include user's name
+                "hotel_name": booking.hotel.name,
+                "room_type_name": booking.room_type.room_name if booking.room_type else "N/A",
+                "number_of_rooms": booking.number_of_rooms,
+                "total_price": str(booking.total_price),  # Convert Decimal to string for JSON serialization
+                "check_in_date": booking.check_in_date,
+                "check_out_date": booking.check_out_date,
+                "booking_date": booking.booking_date,
+                "points_used": booking.points_used,
+                "discount_applied": str(booking.discount_applied),
+                "total_nights": booking.get_total_nights()
+            }
+            return Response(booking_data, status=status.HTTP_200_OK)
+
+        except HotelBooking.DoesNotExist:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 
