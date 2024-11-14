@@ -13,9 +13,12 @@ urlpatterns = [
     path('users/',Usercreateview.as_view(),name='user'),
     path('users/<int:pk>/',Userdetails.as_view(),name='user-details'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
+
+    #coin pusrchase
     path('purchase-coin/', CoinPurchaseView.as_view(), name='purchase-coin'),
     path('user-points/', UserPointsView.as_view(), name='user-points'),
 
+    #hotel booking
     path('hotels/', views.HotelListCreateView.as_view(), name='hotel-list-create'),
     path('hotels/<int:pk>/', views.hotelview.as_view(), name='hotel-detail'),
     path('hotels/<int:pk>/', views.HotelDetailView.as_view(), name='hotel-detail'),
