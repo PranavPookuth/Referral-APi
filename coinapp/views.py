@@ -3,6 +3,7 @@ from datetime import datetime
 import random
 from django.contrib.auth import login
 from django.utils.timezone import now
+from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import  BasicAuthentication
 
@@ -437,5 +438,8 @@ class HotelBookingDetailsView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+class TotalBookingDetailView(RetrieveAPIView):
+    serializer_class = TotalbookingSerializer
 
-
+    def get_queryset(self):
+        return Hotel.objects.filter(id=self.kwargs['pk'])

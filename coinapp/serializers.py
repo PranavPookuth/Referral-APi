@@ -344,3 +344,15 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         # Format the datetime to exclude microseconds and timezone info
         return booking_date_ist.strftime('%Y-%m-%d %H:%M:%S')
 
+
+
+class TotalbookingSerializer(serializers.ModelSerializer):
+    total_bookings = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Hotel
+        fields = ['id', 'name', 'total_bookings']  # Include only relevant fields
+
+    def get_total_bookings(self, obj):
+        # Count the total bookings for the hotel
+        return HotelBooking.objects.filter(hotel=obj).count()
