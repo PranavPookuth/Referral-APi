@@ -338,7 +338,6 @@ class HotelBookingView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class HotelSearchView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [BasicAuthentication]
